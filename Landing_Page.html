@@ -49,14 +49,8 @@
 		</section>
 
 		<section class="card" id="voiceCard" style="margin-top:12px">
-			<div class="device-title">Voice Control</div>
-			<div class="config-row">
-				<button id="voiceToggle" class="btn">Start Listening</button>
-				<div id="voiceStatus" class="small">Microphone inactive</div>
-			</div>
-			<div style="margin-top:8px">
-				<div id="voiceTranscript" class="small">Say commands like "turn on bulb one" or "switch off fan 2"</div>
-			</div>
+			<div class="device-title">Voice Module Status</div>
+			<div class="small" style="color:#4b5563; line-height:1.6;">This site does not use the browser microphone for control. The actual Voice Recognition Module V3 must be connected to the ESP32 and trained separately, then its command IDs are mapped in the firmware to control the devices.</div>
 		</section>
 
 		<section class="card" style="margin-top:12px">
@@ -65,7 +59,7 @@
 		</section>
 	</main>
 	<footer>
-		Tips: Configure your ESP32's IP and port, then use the toggles. Ensure the ESP32 accepts simple GET requests matching the template.
+		Tips: Configure your ESP32's IP and port, then use the toggles.
 	</footer>
 
 	<script>
@@ -209,86 +203,6 @@
 		// one immediate fetch
 		setTimeout(updateAllStatuses, 500);
 
-		// --- Voice control (Web Speech API) ---
-		const voiceToggle = document.getElementById('voiceToggle');
-		const voiceStatus = document.getElementById('voiceStatus');
-		const voiceTranscript = document.getElementById('voiceTranscript');
-		let recognition = null;
-		let listening = false;
-
-		function speak(text){
-			if(!('speechSynthesis' in window)) return;
-			const u = new SpeechSynthesisUtterance(text);
-			window.speechSynthesis.cancel();
-			window.speechSynthesis.speak(u);
-		}
-
-		function mapWordsToDevice(word){
-			word = word.replace(/[^a-z0-9]/g,'').toLowerCase();
-			if(/bulb1|bulbone|onebulb|bulb1/.test(word)) return 'bulb1';
-			if(/bulb2|bulbtwo|twobulb|bulb2/.test(word)) return 'bulb2';
-			if(/fan1|fanone|onefan|fan1/.test(word)) return 'fan1';
-			if(/fan2|fantwo|twofan|fan2/.test(word)) return 'fan2';
-			return null;
-		}
-
-		function processVoiceCommand(text){
-			const t = text.toLowerCase();
-			// look for on/off keywords and device
-			const isOn = /\b(on|start|enable|open|turn on|switch on)\b/.test(t);
-			const isOff = /\b(off|stop|disable|close|turn off|switch off)\b/.test(t);
-			const words = t.split(/\s+/);
-			let device = null;
-			for(const w of words){
-				device = mapWordsToDevice(w);
-				if(device) break;
-			}
-			if(!device){
-				voiceStatus.textContent = 'No device recognized';
-				speak('I did not recognize a device');
-				return;
-			}
-			if(isOn) {
-				sendAction(device, 'on');
-				voiceStatus.textContent = `Sent: ${device} → on`;
-				speak(`${device} turned on`);
-			} else if(isOff){
-				sendAction(device, 'off');
-				voiceStatus.textContent = `Sent: ${device} → off`;
-				speak(`${device} turned off`);
-			} else {
-				voiceStatus.textContent = 'No on/off command detected';
-				speak('Please say turn on or turn off followed by the device name');
-			}
-		}
-
-		function setupVoice(){
-			const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-			if(!SpeechRecognition){
-				voiceStatus.textContent = 'Speech API not supported in this browser';
-				voiceToggle.disabled = true;
-				return;
-			}
-			recognition = new SpeechRecognition();
-			recognition.lang = 'en-US';
-			recognition.interimResults = false;
-			recognition.maxAlternatives = 1;
-
-			recognition.addEventListener('result', (ev) => {
-				const text = Array.from(ev.results).map(r=>r[0].transcript).join('');
-				voiceTranscript.textContent = text;
-				processVoiceCommand(text);
-			});
-			recognition.addEventListener('start', ()=>{ listening = true; voiceStatus.textContent = 'Listening...'; voiceToggle.textContent = 'Stop Listening'; });
-			recognition.addEventListener('end', ()=>{ listening = false; voiceStatus.textContent = 'Microphone inactive'; voiceToggle.textContent = 'Start Listening'; });
-			recognition.addEventListener('error', (e)=>{ voiceStatus.textContent = 'Error: ' + e.error; });
-		}
-
-		voiceToggle.addEventListener('click', ()=>{
-			if(!recognition) setupVoice();
-			if(!recognition) return;
-			if(!listening) recognition.start(); else recognition.stop();
-		});
 
 	</script>
 </body>

@@ -22,6 +22,24 @@ const int PIN_BULB2 = 4;
 const int PIN_FAN1  = 16;
 const int PIN_FAN2  = 17;
 
+// Voice Recognition Module V3 UART connection
+// Change these pins if your wiring is different.
+const int VOICE_RX_PIN = 32;
+const int VOICE_TX_PIN = 33;
+const int VOICE_BAUD   = 9600;
+
+// Map the trained voice command IDs to device actions.
+// Example: command ID 0 = bulb1 ON, 1 = bulb1 OFF, etc.
+// Train the module with your chosen words and set these numbers to match.
+const uint8_t VOICE_CMD_BULB1_ON  = 0;
+const uint8_t VOICE_CMD_BULB1_OFF = 1;
+const uint8_t VOICE_CMD_BULB2_ON  = 2;
+const uint8_t VOICE_CMD_BULB2_OFF = 3;
+const uint8_t VOICE_CMD_FAN1_ON   = 4;
+const uint8_t VOICE_CMD_FAN1_OFF  = 5;
+const uint8_t VOICE_CMD_FAN2_ON   = 6;
+const uint8_t VOICE_CMD_FAN2_OFF  = 7;
+
 WebServer server(80);
 
 // in-memory state
@@ -31,6 +49,76 @@ bool state_fan1  = false;
 bool state_fan2  = false;
 
 String boolToOnOff(bool v){ return v?"on":"off"; }
+
+void applyDeviceState(String device, bool enable){
+  if(device == "bulb1"){
+    state_bulb1 = enable; digitalWrite(PIN_BULB1, enable?HIGH:LOW);
+  } else if(device == "bulb2"){
+    state_bulb2 = enable; digitalWrite(PIN_BULB2, enable?HIGH:LOW);
+  } else if(device == "fan1"){
+    state_fan1 = enable; digitalWrite(PIN_FAN1, enable?HIGH:LOW);
+  } else if(device == "fan2"){
+    state_fan2 = enable; digitalWrite(PIN_FAN2, enable?HIGH:LOW);
+  }
+}
+
+void executeVoiceCommand(uint8_t id){
+  if(id == VOICE_CMD_BULB1_ON){
+    applyDeviceState("bulb1", true);
+    Serial.println("Voice: bulb1 ON");
+  } else if(id == VOICE_CMD_BULB1_OFF){
+    applyDeviceState("bulb1", false);
+    Serial.println("Voice: bulb1 OFF");
+  } else if(id == VOICE_CMD_BULB2_ON){
+    applyDeviceState("bulb2", true);
+    Serial.println("Voice: bulb2 ON");
+  } else if(id == VOICE_CMD_BULB2_OFF){
+    applyDeviceState("bulb2", false);
+    Serial.println("Voice: bulb2 OFF");
+  } else if(id == VOICE_CMD_FAN1_ON){
+    applyDeviceState("fan1", true);
+    Serial.println("Voice: fan1 ON");
+  } else if(id == VOICE_CMD_FAN1_OFF){
+    applyDeviceState("fan1", false);
+    Serial.println("Voice: fan1 OFF");
+  } else if(id == VOICE_CMD_FAN2_ON){
+    applyDeviceState("fan2", true);
+    Serial.println("Voice: fan2 ON");
+  } else if(id == VOICE_CMD_FAN2_OFF){
+    applyDeviceState("fan2", false);
+    Serial.println("Voice: fan2 OFF");
+  }
+}
+
+String readVoiceSerialLine(){
+  String input = "";
+  while(Serial2.available() > 0){
+    char ch = (char)Serial2.read();
+    if(ch == '\r' || ch == '\n'){
+      if(input.length() > 0){
+        break;
+      }
+      continue;
+    }
+    if((ch >= '0' && ch <= '9') || ch == '-' || ch == ' ' || ch == ':'){
+      input += ch;
+    }
+  }
+  return input;
+}
+
+void handleVoiceSerial(){
+  String line = readVoiceSerialLine();
+  if(line.length() == 0) return;
+
+  line.trim();
+  if(line.length() == 0) return;
+
+  int id = line.toInt();
+  if(id >= 0 && id <= 255){
+    executeVoiceCommand((uint8_t)id);
+  }
+}
 
 void handleNotFound(){
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -91,6 +179,7 @@ void setupPins(){
 
 void setup(){
   Serial.begin(115200);
+  Serial2.begin(VOICE_BAUD, SERIAL_8N1, VOICE_RX_PIN, VOICE_TX_PIN);
   delay(10);
   setupPins();
 
@@ -118,8 +207,10 @@ void setup(){
 
   server.begin();
   Serial.println("HTTP server started");
+  Serial.println("Voice module UART ready on RX=" + String(VOICE_RX_PIN) + " TX=" + String(VOICE_TX_PIN));
 }
 
 void loop(){
+  handleVoiceSerial();
   server.handleClient();
 }
