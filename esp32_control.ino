@@ -11,6 +11,7 @@
 
 #include <WiFi.h>
 #include <WebServer.h>
+#include <WiFiManager.h>
 
 // --- configure these ---
 const char* WIFI_SSID = "YOUR_SSID";    // replace
@@ -92,24 +93,20 @@ void setup(){
   Serial.begin(115200);
   delay(10);
   setupPins();
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Connecting to WiFi");
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 20) {
-    delay(500);
-    Serial.print('.');
-    tries++;
+
+  // Use WiFiManager to provide captive-portal for Wi-Fi configuration
+  WiFiManager wm;
+  // Uncomment the next line to clear saved Wi-Fi credentials (useful for testing)
+  // wm.resetSettings();
+  Serial.println("Starting WiFiManager (captive portal if needed)...");
+  // Set a timeout (seconds) for the config portal; remove to wait indefinitely
+  wm.setConfigPortalTimeout(180);
+  if(!wm.autoConnect("ESP32-Setup")){
+    Serial.println("Failed to connect using WiFiManager, restarting...");
+    delay(3000);
+    ESP.restart();
   }
-  if(WiFi.status() == WL_CONNECTED){
-    Serial.println();
-    Serial.print("Connected, IP: "); Serial.println(WiFi.localIP());
-  } else {
-    Serial.println();
-    Serial.println("WiFi connect failed, starting AP fallback");
-    WiFi.softAP("ESP32-AP");
-    Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
-  }
+  Serial.print("Connected, IP: "); Serial.println(WiFi.localIP());
 
   server.on("/control", HTTP_GET, handleControl);
   server.on("/status", HTTP_GET, handleStatus);
