@@ -42,3 +42,23 @@ If you want, I can:
 - Add OTA update support
 - Add fallback to fetch remote resources when internet is available
 - Create a small local server script for desktop testing
+
+Firebase (Realtime Database) sync
+- This project can optionally sync actions to a Firebase Realtime Database. To enable:
+	1. Create a Firebase project at https://console.firebase.google.com/
+ 2. In the project, go to Realtime Database and create a database. Note the database URL (example: `https://PROJECT_ID.firebaseio.com`).
+ 3. For quick testing set the Realtime DB rules to allow read/write (not for production):
+
+```
+{
+	"rules": {
+		".read": true,
+		".write": true
+	}
+}
+```
+
+4. In `esp32_control.ino` set `FIREBASE_DB` to your database URL. If you need authentication, set `FIREBASE_AUTH` with your token.
+5. The firmware will store local user actions in a queue on LittleFS and automatically flush them to `/<your-db>/actions/` when internet is available.
+
+I can add secure auth (Firebase Auth + token minting) when you're ready for production.

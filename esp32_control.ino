@@ -5,6 +5,12 @@
 #include <LittleFS.h>
 #include <HTTPClient.h>
 
+// Firebase Realtime Database (no-auth prototype)
+// Set this to your DB URL (no trailing slash)
+const char* FIREBASE_DB = "https://my-iot-project-442-default-rtdb.firebaseio.com";
+// If you use a database secret or auth token, set it here (optional)
+const char* FIREBASE_AUTH = "";
+
 // --- WI-FI Configuration ---
 const char* WIFI_SSID = "YOUR_SSID";   
 const char* WIFI_PASS = "YOUR_PASS";   
@@ -52,31 +58,104 @@ void applyDeviceState(String device, bool enable){
   }
 }
 
+// --- Simple newline-delimited JSON queue stored in LittleFS ---
+void enqueueAction(const String &device, const String &action){
+  String id = String(millis()) + String(random(1000,9999));
+  unsigned long ts = millis();
+  String obj = "{";
+  obj += "\"id\":\"" + id + "\",";
+  obj += "\"device\":\"" + device + "\",";
+  obj += "\"action\":\"" + action + "\",";
+  obj += "\"ts\":" + String(ts);
+  obj += "}";
+  File f = LittleFS.open("/queue.nd","a");
+  if(f){
+    f.println(obj);
+    f.close();
+    Serial.println("Enqueued action: " + obj);
+  } else {
+    Serial.println("Failed to open queue file for append");
+  }
+}
+
+void flushQueueToFirebase(){
+  if(!LittleFS.exists("/queue.nd")) return; // nothing to flush
+  File f = LittleFS.open("/queue.nd","r");
+  if(!f){ Serial.println("Failed to open queue for reading"); return; }
+  File tmp = LittleFS.open("/queue.tmp","w");
+  if(!tmp){ Serial.println("Failed to open temp file"); f.close(); return; }
+
+  while(f.available()){
+    String line = f.readStringUntil('\n');
+    line.trim();
+    if(line.length() == 0) continue;
+    // parse id quickly
+    int idPos = line.indexOf("\"id\":\"");
+    String idKey = "";
+    if(idPos >= 0){
+      int start = idPos + 6; // position after "id":"
+      int end = line.indexOf('"', start);
+      if(start > 0 && end > start) idKey = line.substring(start, end);
+    }
+    String url = String(FIREBASE_DB) + "/actions" + (idKey.length() ? ("/" + idKey) : "") + ".json";
+    if(strlen(FIREBASE_AUTH) > 0){
+      url += "?auth=";
+      url += FIREBASE_AUTH;
+    }
+
+    HTTPClient http;
+    http.begin(url);
+    http.addHeader("Content-Type", "application/json");
+    int code = http.PUT(line);
+    if(code >= 200 && code < 300){
+      Serial.println("Flushed action to Firebase: " + url + " (" + String(code) + ")");
+    } else {
+      Serial.println("Failed to flush action (kept in queue): code=" + String(code));
+      tmp.println(line); // keep for later
+    }
+    http.end();
+    delay(50);
+  }
+
+  f.close(); tmp.close();
+  // replace queue with remaining items
+  LittleFS.remove("/queue.nd");
+  if(LittleFS.exists("/queue.tmp")) LittleFS.rename("/queue.tmp","/queue.nd");
+}
+
 void executeVoiceCommand(uint8_t id){
   if(id == VOICE_CMD_BULB1_ON){
     applyDeviceState("bulb1", true);
     Serial.println("Voice: bulb1 ON");
+    enqueueAction("bulb1", "on");
   } else if(id == VOICE_CMD_BULB1_OFF){
     applyDeviceState("bulb1", false);
     Serial.println("Voice: bulb1 OFF");
+    enqueueAction("bulb1", "off");
   } else if(id == VOICE_CMD_BULB2_ON){
     applyDeviceState("bulb2", true);
     Serial.println("Voice: bulb2 ON");
+    enqueueAction("bulb2", "on");
   } else if(id == VOICE_CMD_BULB2_OFF){
     applyDeviceState("bulb2", false);
     Serial.println("Voice: bulb2 OFF");
+    enqueueAction("bulb2", "off");
   } else if(id == VOICE_CMD_FAN1_ON){
     applyDeviceState("fan1", true);
     Serial.println("Voice: fan1 ON");
+    enqueueAction("fan1", "on");
   } else if(id == VOICE_CMD_FAN1_OFF){
     applyDeviceState("fan1", false);
     Serial.println("Voice: fan1 OFF");
+    enqueueAction("fan1", "off");
   } else if(id == VOICE_CMD_FAN2_ON){
     applyDeviceState("fan2", true);
     Serial.println("Voice: fan2 ON");
+    enqueueAction("fan2", "on");
   } else if(id == VOICE_CMD_FAN2_OFF){
     applyDeviceState("fan2", false);
     Serial.println("Voice: fan2 OFF");
+    enqueueAction("fan2", "off");
   }
 }
 
@@ -161,6 +240,8 @@ void handleControl(){
     return;
   }
   Serial.printf("Control: %s -> %s\n", device.c_str(), action.c_str());
+  // enqueue this user action for cloud sync
+  enqueueAction(device, action);
   server.send(200, "text/plain", "OK");
 }
 
@@ -251,6 +332,8 @@ void loop(){
       int code = http.GET();
       if(code == 204){
         Serial.println("Internet reachable");
+        // try to flush any queued actions to Firebase
+        flushQueueToFirebase();
       } else {
         Serial.println("No upstream internet, but WiFi connected (local network only)");
       }
