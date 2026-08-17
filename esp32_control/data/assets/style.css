@@ -1,0 +1,60 @@
+
+/* Professional UI theme */
+:root{
+  --bg:#f4f6fb;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --accent:#2563eb;
+  --accent-2:#0b5fff;
+  --success:#059669;
+  --danger:#e11d48;
+  --glass: rgba(255,255,255,0.6);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;margin:0;background:var(--bg);color:#0b0b0b;-webkit-font-smoothing:antialiased}
+header{display:flex;align-items:center;gap:16px;padding:18px 24px;background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#fff}
+.logo{display:flex;align-items:center;gap:12px}
+.logo img{height:36px;width:36px}
+.brand{font-weight:700;font-size:18px}
+.container{max-width:1100px;margin:26px auto;padding:0 16px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+/* ensure cards can shrink below their content width */
+.grid > .card{min-width:0}
+.card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 8px 24px rgba(20,28,50,0.06);display:flex;flex-direction:column;gap:12px}
+.card-top{display:flex;align-items:center;gap:14px}
+.avatar{width:56px;height:56px;border-radius:12px;background:linear-gradient(180deg,#fff,#eef6ff);display:flex;align-items:center;justify-content:center;flex:0 0 56px}
+.device-img{width:40px;height:40px}
+.device-title{font-weight:700;font-size:16px}
+.controls{display:flex;align-items:center;gap:10px}
+.btn{padding:8px 14px;border-radius:10px;border:1px solid #e6e9ee;background:#f8fafc;cursor:pointer;font-weight:600}
+.btn:disabled{opacity:0.6;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent-2)}
+.status{padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700}
+.online{background:#ecfdf5;color:var(--success);border:1px solid #bbf7d0}
+.offline{background:#fff1f2;color:var(--danger);border:1px solid #fecaca}
+.meta{color:var(--muted);font-size:13px}
+.config-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input[type=text], input[type=url], input[type=number]{padding:10px;border:1px solid #e6e9ee;border-radius:10px}
+label{font-size:13px;color:#333}
+.log{height:140px;overflow:auto;background:linear-gradient(180deg,#0b1220,#071024);color:#dfefff;padding:12px;border-radius:10px;font-family:monospace;font-size:12px}
+.small{font-size:13px;color:var(--muted)}
+
+/* Toggle switch */
+.switch{position:relative;width:54px;height:30px;background:#e6eefc;border-radius:999px;border:1px solid #dde9ff;cursor:pointer}
+.switch input{display:none}
+.switch .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:white;box-shadow:0 2px 8px rgba(16,24,40,0.12);transition:transform .18s ease, left .18s ease}
+.switch.on{background:linear-gradient(90deg,var(--accent),var(--accent-2));border-color:transparent}
+.switch.on .knob{transform:translateX(24px)}
+
+/* Responsive tweaks */
+@media (max-width:720px){
+  /* small screens: stack to single column */
+  .grid{grid-template-columns:1fr;}
+}
+
+@media (max-width:560px){
+  .avatar{width:48px;height:48px}
+  .device-title{font-size:15px}
+}
+

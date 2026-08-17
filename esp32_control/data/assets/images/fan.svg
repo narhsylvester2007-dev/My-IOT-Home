@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <circle cx="32" cy="32" r="28" fill="#e8f0ff"/>
+  <g fill="#7b9cff">
+    <path d="M32 32c0 0 10-2 14-7s2-8 2-8-6 0-11 3S32 32 32 32z"/>
+    <path d="M32 32c0 0-10 2-14 7s-2 8-2 8 6 0 11-3S32 32 32 32z"/>
+    <path d="M32 32c0 0 6-8 7-14s-4-6-4-6-6 4-9 8S32 32 32 32z"/>
+  </g>
+  <circle cx="32" cy="32" r="6" fill="#3f6bff"/>
+</svg>

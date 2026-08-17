@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>ESP32 IoT Control</title>
+	<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+	<header>
+		<div class="logo">
+			<img src="assets/images/logo.svg" alt="logo">
+			<div class="brand">Smart Home With Voice Recognition</div>
+		</div>
+		<div style="margin-left:auto;color:rgba(255,255,255,0.9);" class="meta">Local & Offline Ready</div>
+	</header>
+	<main class="container">
+		<section class="card" style="margin-bottom:12px">
+			<div class="device-title">ESP32 Connection</div>
+			<div class="config-row">
+				<label>IP:</label>
+				<input id="cfgIp" type="text" placeholder="192.168.4.1" />
+				<label>Port:</label>
+				<input id="cfgPort" type="number" placeholder="80" style="width:96px" />
+				<button id="saveCfg" class="btn primary">Save</button>
+			</div>
+			<div style="margin-top:12px">
+				<button id="toggleAdvanced" class="btn" type="button">Show advanced settings</button>
+			</div>
+			<div id="advancedConfig" style="display:none; margin-top:12px; border-top:1px solid #e6e9ee; padding-top:12px;">
+				<div class="config-row">
+					<label>Control path template:</label>
+					<input id="cfgTemplate" type="text" style="flex:1" value="/control?device={device}&action={action}" />
+				</div>
+				<div class="small" style="margin-top:8px">Template supports tokens <code>{device}</code> and <code>{action}</code>. Example request: <code>http://IP:PORT/control?device=bulb1&action=on</code></div>
+			</div>
+		</section>
+
+		<section class="grid" id="devicesGrid">
+			<!-- device cards inserted by JS -->
+		</section>
+
+		<!--<section class="card" id="voiceCard" style="margin-top:12px">
+			<div class="device-title">Voice Module Status</div>
+			<div class="small" style="color:#4b5563; line-height:1.6;">This site does not use the browser microphone for control. The actual Voice Recognition Module V3 must be connected to the ESP32 and trained separately, then its command IDs are mapped in the firmware to control the devices.</div>
+		</section>-->
+
+		<section class="card" style="margin-top:12px">
+			<div class="device-title">Activity Log</div>
+			<div id="log" class="log"></div>
+		</section>
+	</main>
+	<footer>
+		Tips: Configure your ESP32's IP and port, then use the toggles.
+	</footer>
+
+	<script>
+		const devices = [
+			{ id:'bulb1', name:'Bulb 1', icon:'bulb' },
+			{ id:'bulb2', name:'Bulb 2', icon:'bulb' },
+			{ id:'fan1',  name:'Fan 1',  icon:'fan'  },
+			{ id:'fan2',  name:'Fan 2',  icon:'fan'  }
+		];
+
+		function log(msg){
+			const el = document.getElementById('log');
+			const time = new Date().toLocaleTimeString();
+			el.textContent = `[${time}] ${msg}\n` + el.textContent;
+		}
+
+		function getConfig(){
+			return {
+				ip: localStorage.getItem('esp_ip') || '',
+				port: localStorage.getItem('esp_port') || '',
+				template: localStorage.getItem('esp_template') || '/control?device={device}&action={action}'
+			};
+		}
+
+		function saveConfig(){
+			const ip = document.getElementById('cfgIp').value.trim();
+			const port = document.getElementById('cfgPort').value.trim();
+			const template = document.getElementById('cfgTemplate').value.trim();
+			localStorage.setItem('esp_ip', ip);
+			localStorage.setItem('esp_port', port);
+			localStorage.setItem('esp_template', template);
+			log(`Saved config: ${ip}:${port} template=${template}`);
+			updateAllStatuses();
+		}
+
+		function buildUrl(device, action){
+			const cfg = getConfig();
+			if(!cfg.ip) return null;
+			const base = `http://${cfg.ip}` + (cfg.port?`:${cfg.port}`:'');
+			const path = (cfg.template||'/control?device={device}&action={action}').replace('{device}', encodeURIComponent(device)).replace('{action}', encodeURIComponent(action));
+			return base + path;
+		}
+
+		async function sendAction(device, desired){
+			const url = buildUrl(device, desired);
+			if(!url){ log('No IP configured'); return; }
+			setDeviceLoading(device, true);
+			try{
+				const res = await fetch(url, {cache:'no-store'});
+				if(!res.ok) throw new Error('HTTP ' + res.status);
+				let text = await res.text();
+				log(`Sent ${device}=${desired} → ${url} (${res.status})`);
+				// optimistic update
+				setDeviceState(device, desired === 'on' ? 'on' : 'off');
+			}catch(err){
+				log(`Error sending ${device}: ${err.message}`);
+			}finally{ setDeviceLoading(device, false); }
+		}
+
+		function setDeviceState(device, state){
+			const badge = document.querySelector(`[data-device="${device}"] .status`);
+			const toggle = document.querySelector(`[data-device="${device}"] .toggle`);
+			if(!badge) return;
+			badge.textContent = state === 'on' ? 'ON' : 'OFF';
+			badge.className = 'status ' + (state === 'on' ? 'online' : 'offline');
+			if(toggle){
+				// update switch without triggering its change handler
+				if(toggle._suppress) toggle._suppress = false;
+				toggle._suppress = true;
+				toggle.checked = (state === 'on');
+				const switchEl = toggle.closest('.switch');
+				if(switchEl){
+					if(state === 'on') switchEl.classList.add('on'); else switchEl.classList.remove('on');
+				}
+				// small timeout then clear suppress
+				setTimeout(()=>{ toggle._suppress = false; }, 50);
+			}
+		}
+
+		function setDeviceLoading(device, loading){
+			const card = document.querySelector(`[data-device="${device}"]`);
+			if(!card) return;
+			card.style.opacity = loading ? 0.6 : 1;
+		}
+
+		function createDeviceCard(d){
+			const div = document.createElement('div');
+			div.className = 'card';
+			div.setAttribute('data-device', d.id);
+			div.innerHTML = `
+				<div class="card-top">
+					<div class="avatar"><img class="device-img" src="assets/images/${d.icon}.svg" alt="${d.name}" /></div>
+										<div>
+											<div class="device-title">${d.name}</div>
+										</div>
+				</div>
+				<div class="controls">
+					<div class="status offline">—</div>
+					<label class="switch">
+					  <input type="checkbox" class="toggle" />
+					  <span class="knob"></span>
+					</label>
+					<button class="btn" data-action="refresh">Refresh</button>
+				</div>
+			`;
+			const toggle = div.querySelector('.toggle');
+			const refBtn = div.querySelector('[data-action="refresh"]');
+			// change handler
+			toggle.addEventListener('change', (e)=>{
+				if(toggle._suppress) return; // programmatic update
+				const desired = e.target.checked ? 'on' : 'off';
+				// update visual immediately
+				const switchEl = toggle.closest('.switch');
+				if(switchEl){ if(e.target.checked) switchEl.classList.add('on'); else switchEl.classList.remove('on'); }
+				sendAction(d.id, desired);
+			});
+			refBtn.addEventListener('click', ()=> updateStatus(d.id));
+			return div;
+		}
+
+		function render(){
+			const grid = document.getElementById('devicesGrid');
+			grid.innerHTML = '';
+			devices.forEach(d => grid.appendChild(createDeviceCard(d)));
+			const cfg = getConfig();
+			document.getElementById('cfgIp').value = cfg.ip || '';
+			document.getElementById('cfgPort').value = cfg.port || '';
+			document.getElementById('cfgTemplate').value = cfg.template || '/control?device={device}&action={action}';
+		}
+
+		async function updateStatus(device){
+			const cfg = getConfig();
+			if(!cfg.ip) return; // no config
+			const statusUrl = `http://${cfg.ip}${cfg.port?`:${cfg.port}`:''}/status`;
+			try{
+				const res = await fetch(statusUrl, {cache:'no-store'});
+				if(!res.ok) throw new Error('HTTP ' + res.status);
+				const data = await res.json();
+				if(data && typeof data === 'object'){
+					if(device){
+						const st = data[device];
+						if(st) setDeviceState(device, st === 'on' ? 'on' : 'off');
+					} else {
+						devices.forEach(d => setDeviceState(d.id, data[d.id] === 'on' ? 'on' : 'off'));
+					}
+					log('Status updated from ' + statusUrl);
+				}
+			}catch(err){
+				log('Status fetch failed: ' + err.message);
+			}
+		}
+
+		function updateAllStatuses(){
+			updateStatus(null);
+		}
+
+		document.getElementById('saveCfg').addEventListener('click', saveConfig);
+		document.getElementById('toggleAdvanced').addEventListener('click', () => {
+			const box = document.getElementById('advancedConfig');
+			const btn = document.getElementById('toggleAdvanced');
+			const isHidden = box.style.display === 'none';
+			box.style.display = isHidden ? 'block' : 'none';
+			btn.textContent = isHidden ? 'Hide advanced settings' : 'Show advanced settings';
+		});
+
+		// initial render
+		render();
+		// poll status every 8 seconds
+		setInterval(updateAllStatuses, 8000);
+		// one immediate fetch
+		setTimeout(updateAllStatuses, 500);
+
+
+	</script>
+</body>
+</html>
+
