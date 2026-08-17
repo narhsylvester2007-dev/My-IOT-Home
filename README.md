@@ -1,4 +1,4 @@
-# ESP32 Controller — Offline & Online Modes
+# Smart Home With Voice Recognition — Offline & Online Modes
 
 This project runs on an ESP32 and supports both internet-connected (STA) and offline (AP/LittleFS) usage.
 
