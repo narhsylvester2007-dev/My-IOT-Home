@@ -1,36 +1,26 @@
-/*
-  esp32_control.ino
-
-  Example ESP32 Arduino sketch exposing simple endpoints:
-    GET /control?device={device}&action={on|off}
-    GET /status
-
-  Replace WIFI_SSID and WIFI_PASS with your network credentials.
-  Map device names to pins below as needed for your hardware.
-*/
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WiFiManager.h>
+#include <LittleFS.h>
+#include <HTTPClient.h>
 
-// --- configure these ---
-const char* WIFI_SSID = "YOUR_SSID";    // replace
-const char* WIFI_PASS = "YOUR_PASS";    // replace
+// --- WI-FI Configuration ---
+const char* WIFI_SSID = "YOUR_SSID";   
+const char* WIFI_PASS = "YOUR_PASS";   
 // pins for each device (change to match your wiring)
 const int PIN_BULB1 = 2;
 const int PIN_BULB2 = 4;
 const int PIN_FAN1  = 16;
 const int PIN_FAN2  = 17;
 
-// Voice Recognition Module V3 UART connection
-// Change these pins if your wiring is different.
+// Voice Recognition Module V3 connection
 const int VOICE_RX_PIN = 32;
 const int VOICE_TX_PIN = 33;
 const int VOICE_BAUD   = 9600;
 
-// Map the trained voice command IDs to device actions.
-// Example: command ID 0 = bulb1 ON, 1 = bulb1 OFF, etc.
-// Train the module with your chosen words and set these numbers to match.
+
+// Training the module
 const uint8_t VOICE_CMD_BULB1_ON  = 0;
 const uint8_t VOICE_CMD_BULB1_OFF = 1;
 const uint8_t VOICE_CMD_BULB2_ON  = 2;
@@ -122,6 +112,21 @@ void handleVoiceSerial(){
 
 void handleNotFound(){
   server.sendHeader("Access-Control-Allow-Origin", "*");
+  // try to serve from filesystem first
+  String path = server.uri();
+  if(path == "/") path = "/index.html";
+  if(LittleFS.exists(path)){
+    File f = LittleFS.open(path, "r");
+    String contentType = "text/plain";
+    if(path.endsWith(".html")) contentType = "text/html";
+    else if(path.endsWith(".js")) contentType = "application/javascript";
+    else if(path.endsWith(".css")) contentType = "text/css";
+    else if(path.endsWith(".png")) contentType = "image/png";
+    else if(path.endsWith(".jpg") || path.endsWith(".jpeg")) contentType = "image/jpeg";
+    server.streamFile(f, contentType);
+    f.close();
+    return;
+  }
   server.send(404, "text/plain", "Not found");
 }
 
@@ -182,6 +187,12 @@ void setup(){
   Serial2.begin(VOICE_BAUD, SERIAL_8N1, VOICE_RX_PIN, VOICE_TX_PIN);
   delay(10);
   setupPins();
+  // Initialize LittleFS to serve web UI files from flash
+  if(!LittleFS.begin()){
+    Serial.println("LittleFS mount failed");
+  } else {
+    Serial.println("LittleFS mounted");
+  }
 
   // Use WiFiManager to provide captive-portal for Wi-Fi configuration
   WiFiManager wm;
@@ -195,15 +206,31 @@ void setup(){
     delay(3000);
     ESP.restart();
   }
-  Serial.print("Connected, IP: "); Serial.println(WiFi.localIP());
+  Serial.print("Connected (STA), IP: "); Serial.println(WiFi.localIP());
+
+  // Also enable an AP so devices can connect locally even without upstream internet
+  WiFi.mode(WIFI_AP_STA);
+  bool apOK = WiFi.softAP("ESP32-AP");
+  if(apOK){
+    Serial.print("SoftAP started, IP: "); Serial.println(WiFi.softAPIP());
+  }
 
   server.on("/control", HTTP_GET, handleControl);
   server.on("/status", HTTP_GET, handleStatus);
-  server.on("/", HTTP_GET, [](){ server.sendHeader("Location", "/status"); server.send(302, "text/plain", ""); });
+  server.on("/", HTTP_GET, [](){
+    if(LittleFS.exists("/index.html")){
+      File f = LittleFS.open("/index.html","r"); server.streamFile(f, "text/html"); f.close();
+    } else {
+      server.sendHeader("Location", "/status"); server.send(302, "text/plain", "");
+    }
+  });
   server.onNotFound(handleNotFound);
   server.on("/", HTTP_OPTIONS, handleOptions);
   server.on("/control", HTTP_OPTIONS, handleOptions);
   server.on("/status", HTTP_OPTIONS, handleOptions);
+
+  // start a background task to periodically check internet availability (non-blocking)
+  // we'll perform a simple HTTP GET to test connectivity when needed in loop()
 
   server.begin();
   Serial.println("HTTP server started");
@@ -213,4 +240,23 @@ void setup(){
 void loop(){
   handleVoiceSerial();
   server.handleClient();
+
+  // Optionally detect internet availability and log it (non-blocking minimal check)
+  static unsigned long lastCheck = 0;
+  if(millis() - lastCheck > 15000){
+    lastCheck = millis();
+    if(WiFi.status() == WL_CONNECTED){
+      HTTPClient http;
+      http.begin("http://clients3.google.com/generate_204");
+      int code = http.GET();
+      if(code == 204){
+        Serial.println("Internet reachable");
+      } else {
+        Serial.println("No upstream internet, but WiFi connected (local network only)");
+      }
+      http.end();
+    } else {
+      Serial.println("WiFi not connected (AP-only or offline)");
+    }
+  }
 }

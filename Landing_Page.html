@@ -4,26 +4,7 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width,initial-scale=1" />
 	<title>ESP32 IoT Control</title>
-	<style>
-		body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:#f6f8fa;color:#0b0b0b}
-		header{padding:16px 20px;background:#0b5fff;color:#fff}
-		.container{max-width:980px;margin:20px auto;padding:0 16px}
-		.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-		.card{background:#fff;border:1px solid #e6e9ee;border-radius:8px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-		.device-title{font-weight:600;margin-bottom:8px}
-		.controls{display:flex;align-items:center;gap:8px}
-		.btn{padding:8px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#f1f5f9;cursor:pointer}
-		.btn.primary{background:#0b5fff;color:#fff;border-color:#0a56e0}
-		.status{padding:6px 8px;border-radius:6px;font-size:13px}
-		.online{background:#e6ffed;color:#046a0f;border:1px solid #bdf0c6}
-		.offline{background:#fff0f0;color:#9b0b0b;border:1px solid #f0c6c6}
-		footer{max-width:980px;margin:12px auto;padding:8px 16px;color:#666}
-		.config-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-		input[type=text], input[type=url], input[type=number]{padding:8px;border:1px solid #d1d5db;border-radius:6px}
-		label{font-size:13px;color:#333}
-		.log{height:110px;overflow:auto;background:#0b1220;color:#dfefff;padding:8px;border-radius:6px;font-family:monospace;font-size:12px}
-		.small{font-size:12px;color:#555}
-	</style>
+	<link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 	<header>
@@ -37,11 +18,18 @@
 				<input id="cfgIp" type="text" placeholder="192.168.4.1" />
 				<label>Port:</label>
 				<input id="cfgPort" type="number" placeholder="80" style="width:96px" />
-				<label>Control path template:</label>
-				<input id="cfgTemplate" type="text" style="flex:1" value="/control?device={device}&action={action}" />
 				<button id="saveCfg" class="btn primary">Save</button>
 			</div>
-			<div class="small" style="margin-top:8px">Template supports tokens <code>{device}</code> and <code>{action}</code>. Example request: <code>http://IP:PORT/control?device=bulb1&action=on</code></div>
+			<div style="margin-top:12px">
+				<button id="toggleAdvanced" class="btn" type="button">Show advanced settings</button>
+			</div>
+			<div id="advancedConfig" style="display:none; margin-top:12px; border-top:1px solid #e6e9ee; padding-top:12px;">
+				<div class="config-row">
+					<label>Control path template:</label>
+					<input id="cfgTemplate" type="text" style="flex:1" value="/control?device={device}&action={action}" />
+				</div>
+				<div class="small" style="margin-top:8px">Template supports tokens <code>{device}</code> and <code>{action}</code>. Example request: <code>http://IP:PORT/control?device=bulb1&action=on</code></div>
+			</div>
 		</section>
 
 		<section class="grid" id="devicesGrid">
@@ -64,10 +52,10 @@
 
 	<script>
 		const devices = [
-			{ id:'bulb1', name:'Bulb 1' },
-			{ id:'bulb2', name:'Bulb 2' },
-			{ id:'fan1',  name:'Fan 1'  },
-			{ id:'fan2',  name:'Fan 2'  }
+			{ id:'bulb1', name:'Bulb 1', icon:'bulb' },
+			{ id:'bulb2', name:'Bulb 2', icon:'bulb' },
+			{ id:'fan1',  name:'Fan 1',  icon:'fan'  },
+			{ id:'fan2',  name:'Fan 2',  icon:'fan'  }
 		];
 
 		function log(msg){
@@ -141,7 +129,10 @@
 			div.className = 'card';
 			div.setAttribute('data-device', d.id);
 			div.innerHTML = `
-				<div class="device-title">${d.name}</div>
+				<div class="card-top">
+					<img class="device-img" src="assets/images/${d.icon}.svg" alt="${d.name}" />
+					<div class="device-title">${d.name}</div>
+				</div>
 				<div class="controls">
 					<div class="status offline">—</div>
 					<button class="btn btn-on">On</button>
@@ -195,6 +186,13 @@
 		}
 
 		document.getElementById('saveCfg').addEventListener('click', saveConfig);
+		document.getElementById('toggleAdvanced').addEventListener('click', () => {
+			const box = document.getElementById('advancedConfig');
+			const btn = document.getElementById('toggleAdvanced');
+			const isHidden = box.style.display === 'none';
+			box.style.display = isHidden ? 'block' : 'none';
+			btn.textContent = isHidden ? 'Hide advanced settings' : 'Show advanced settings';
+		});
 
 		// initial render
 		render();
