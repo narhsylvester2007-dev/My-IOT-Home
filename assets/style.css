@@ -48,8 +48,8 @@ label{font-size:13px;color:#333}
 .switch.on .knob{transform:translateX(24px)}
 
 /* Responsive tweaks */
-@media (max-width:360px){
-  /* very small phones: stack to single column */
+@media (max-width:720px){
+  /* small screens: stack to single column */
   .grid{grid-template-columns:1fr;}
 }
 
