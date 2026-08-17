@@ -8,7 +8,11 @@
 </head>
 <body>
 	<header>
-		<h1 style="margin:0;font-size:18px">ESP32 IoT Control — Bulbs & Fans</h1>
+		<div class="logo">
+			<img src="assets/images/logo.svg" alt="logo">
+			<div class="brand">ESP32 IoT Control</div>
+		</div>
+		<div style="margin-left:auto;color:rgba(255,255,255,0.9);" class="meta">Local & Offline Ready</div>
 	</header>
 	<main class="container">
 		<section class="card" style="margin-bottom:12px">
@@ -42,7 +46,7 @@
 		</section>-->
 
 		<section class="card" style="margin-top:12px">
-			<div class="device-title">Log</div>
+			<div class="device-title">Activity Log</div>
 			<div id="log" class="log"></div>
 		</section>
 	</main>
@@ -109,13 +113,22 @@
 
 		function setDeviceState(device, state){
 			const badge = document.querySelector(`[data-device="${device}"] .status`);
-			const onBtn = document.querySelector(`[data-device="${device}"] .btn-on`);
-			const offBtn = document.querySelector(`[data-device="${device}"] .btn-off`);
+			const toggle = document.querySelector(`[data-device="${device}"] .toggle`);
 			if(!badge) return;
 			badge.textContent = state === 'on' ? 'ON' : 'OFF';
 			badge.className = 'status ' + (state === 'on' ? 'online' : 'offline');
-			if(onBtn) onBtn.disabled = (state === 'on');
-			if(offBtn) offBtn.disabled = (state === 'off');
+			if(toggle){
+				// update switch without triggering its change handler
+				if(toggle._suppress) toggle._suppress = false;
+				toggle._suppress = true;
+				toggle.checked = (state === 'on');
+				const switchEl = toggle.closest('.switch');
+				if(switchEl){
+					if(state === 'on') switchEl.classList.add('on'); else switchEl.classList.remove('on');
+				}
+				// small timeout then clear suppress
+				setTimeout(()=>{ toggle._suppress = false; }, 50);
+			}
 		}
 
 		function setDeviceLoading(device, loading){
@@ -130,21 +143,32 @@
 			div.setAttribute('data-device', d.id);
 			div.innerHTML = `
 				<div class="card-top">
-					<img class="device-img" src="assets/images/${d.icon}.svg" alt="${d.name}" />
-					<div class="device-title">${d.name}</div>
+					<div class="avatar"><img class="device-img" src="assets/images/${d.icon}.svg" alt="${d.name}" /></div>
+					<div>
+					  <div class="device-title">${d.name}</div>
+					  <div class="meta">Device ID: ${d.id}</div>
+					</div>
 				</div>
 				<div class="controls">
 					<div class="status offline">—</div>
-					<button class="btn btn-on">On</button>
-					<button class="btn btn-off">Off</button>
+					<label class="switch">
+					  <input type="checkbox" class="toggle" />
+					  <span class="knob"></span>
+					</label>
 					<button class="btn" data-action="refresh">Refresh</button>
 				</div>
 			`;
-			const onBtn = div.querySelector('.btn-on');
-			const offBtn = div.querySelector('.btn-off');
+			const toggle = div.querySelector('.toggle');
 			const refBtn = div.querySelector('[data-action="refresh"]');
-			onBtn.addEventListener('click', ()=> sendAction(d.id,'on'));
-			offBtn.addEventListener('click', ()=> sendAction(d.id,'off'));
+			// change handler
+			toggle.addEventListener('change', (e)=>{
+				if(toggle._suppress) return; // programmatic update
+				const desired = e.target.checked ? 'on' : 'off';
+				// update visual immediately
+				const switchEl = toggle.closest('.switch');
+				if(switchEl){ if(e.target.checked) switchEl.classList.add('on'); else switchEl.classList.remove('on'); }
+				sendAction(d.id, desired);
+			});
 			refBtn.addEventListener('click', ()=> updateStatus(d.id));
 			return div;
 		}
